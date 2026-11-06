@@ -14,7 +14,6 @@ export class SubmissionError extends Error {
 type SubmissionBody = {
   answers?: unknown;
   comment?: unknown;
-  contactInfo?: unknown;
 };
 
 type SubmissionResult = {
@@ -106,7 +105,7 @@ async function sendToOrganizer(
 
 export async function submitSurveyByEmail(
   input: SubmissionBody,
-): Promise<SubmissionResult> {
+): Promise<{ referenceId: string }> {
   if (
     !input ||
     typeof input.answers !== 'object' ||
@@ -118,24 +117,21 @@ export async function submitSurveyByEmail(
 
   const rawAnswers = input.answers as Record<string, unknown>;
   const comment = typeof input.comment === 'string' ? input.comment.trim() : '';
-  const contactInfo =
-    typeof input.contactInfo === 'string' ? input.contactInfo.trim() : '';
 
-  if (comment.length > 10000 || contactInfo.length > 500) {
+  if (comment.length > 10000) {
     throw new SubmissionError(
       400,
-      'Your comment or contact information is too long. Please shorten it and try again.',
+      'Your comment is too long. Please shorten it and try again.',
     );
   }
 
-  // Question 13 only controls whether the separate contact request is sent.
-  // It is intentionally excluded from the survey record.
-  const { '13': contactConsent, ...surveyAnswers } = rawAnswers;
+  // Question 13 is a separate contact preference, not part of the anonymous survey record.
+  const { '13': _contactConsent, ...surveyAnswers } = rawAnswers;
   const referenceId = makeReferenceId();
   const submittedAt = new Date().toISOString();
   const answerLines = Object.entries(surveyAnswers)
     .map(([question, answer]) => `Q${question}: ${formatAnswer(answer)}`)
-    .join('\n');
+    .join('\\n');
 
   const surveyBody = [
     'LATESTHIRE — NEW WORKPLACE FAIRNESS SURVEY',
@@ -152,15 +148,11 @@ export async function submitSurveyByEmail(
     comment || 'No comment provided.',
     '',
     'This email is the permanent record of this survey submission.',
-    'Optional contact requests are sent in a separate email and are not attached to this response.',
-  ].join('\n');
+    'Optional contact requests, if any, are sent separately and are not attached to this response.',
+  ].join('\\n');
 
-  // The survey is not confirmed unless Gmail's SMTP server accepts it.
   try {
-    await sendToOrganizer(
-      `[LatestHire Survey] ${referenceId}`,
-      surveyBody,
-    );
+    await sendToOrganizer(`[LatestHire Survey] ${referenceId}`, surveyBody);
   } catch (error) {
     const code =
       error && typeof error === 'object' && 'code' in error
@@ -173,40 +165,42 @@ export async function submitSurveyByEmail(
     );
   }
 
-  const consentGiven =
-    contactConsent === 'Yes.' ||
-    contactConsent === 'Maybe, I would like more information.';
+  return { referenceId };
+}
 
-  let contactRequestSent: boolean | null = null;
-  let warning: string | undefined;
-
-  if (consentGiven && contactInfo) {
-    try {
-      // This separate message deliberately contains no survey answers,
-      // response reference ID, or survey submission identifier.
-      await sendToOrganizer(
-        '[LatestHire] Private Contact Request',
-        [
-          'A survey participant asked to be contacted privately.',
-          '',
-          'Contact information supplied:',
-          contactInfo,
-          '',
-          'This is a separate contact request. It does not contain or identify a survey response.',
-        ].join('\n'),
-      );
-      contactRequestSent = true;
-    } catch (error) {
-      const code =
-        error && typeof error === 'object' && 'code' in error
-          ? String((error as { code?: unknown }).code)
-          : 'MAIL_DELIVERY_ERROR';
-      console.error('[LatestHire] Separate contact email failed:', code);
-      contactRequestSent = false;
-      warning =
-        'Your survey was received, but your separate request for private follow-up could not be delivered. Please contact the organizer directly if you still want a reply.';
-    }
+export async function sendSeparateContactRequest(contactInfo: unknown): Promise<void> {
+  if (typeof contactInfo !== 'string' || !contactInfo.trim()) {
+    throw new SubmissionError(400, 'Please enter an email address or phone number.');
   }
 
-  return { referenceId, contactRequestSent, warning };
+  const cleanContact = contactInfo.trim();
+  if (cleanContact.length > 500) {
+    throw new SubmissionError(400, 'Your contact information is too long.');
+  }
+
+  // This is a separate HTTP request and a separate email. It contains no
+  // survey answers, response reference, or identifier linking it to a response.
+  try {
+    await sendToOrganizer(
+      '[LatestHire] Private Contact Request',
+      [
+        'A survey participant asked to be contacted privately.',
+        '',
+        'Contact information supplied:',
+        cleanContact,
+        '',
+        'This message is intentionally separate and does not identify or include a survey response.',
+      ].join('\\n'),
+    );
+  } catch (error) {
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : 'MAIL_DELIVERY_ERROR';
+    console.error('[LatestHire] Separate contact email failed:', code);
+    throw new SubmissionError(
+      502,
+      'Your survey was received, but your separate contact request could not be delivered. Please contact the organizer directly if you still want a reply.',
+    );
+  }
 }
