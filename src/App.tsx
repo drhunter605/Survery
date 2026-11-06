@@ -1241,7 +1241,14 @@ export default function App() {
           <div className="flex items-center gap-4">
             <button onClick={() => setView('intro')} className="hover:text-white transition-colors">Survey Home</button>
             <span>·</span>
-            <button onClick={() => setView('admin_login')} className="hover:text-white transition-colors">Admin Dashboard</button>
+            <a
+              href="https://mail.google.com/mail/u/0/#inbox"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              Gmail Archive
+            </a>
           </div>
         </div>
       </footer>
