@@ -19,8 +19,6 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       success: true,
       referenceId: result.referenceId,
-      contactRequestSent: result.contactRequestSent,
-      warning: result.warning,
     });
   } catch (error) {
     if (error instanceof SubmissionError) {
