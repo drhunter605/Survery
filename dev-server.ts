@@ -29,8 +29,6 @@ async function start() {
       res.json({
         success: true,
         referenceId: result.referenceId,
-        contactRequestSent: result.contactRequestSent,
-        warning: result.warning,
       });
     } catch (error) {
       if (error instanceof SubmissionError) {
