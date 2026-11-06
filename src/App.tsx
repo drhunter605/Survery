@@ -214,7 +214,7 @@ export default function App() {
 
   // Admin state
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('usace_admin_token') || '');
+  const [adminToken, setAdminToken] = useState('');
   const [adminError, setAdminError] = useState('');
   const [surveys, setSurveys] = useState<any[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
@@ -250,18 +250,64 @@ export default function App() {
       const res = await fetch('/api/surveys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers, comment, contactInfo }),
+        body: JSON.stringify({ answers, comment }),
       });
-      const data = await res.json();
-      if (data.success) {
-        setLastReferenceId(data.referenceId);
-        setView('success');
-      } else {
-        alert('Submission failed: ' + (data.message || 'Unknown error'));
+
+      const responseText = await res.text();
+      let data: any;
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        throw new Error(`The survey server returned an unexpected response (HTTP ${res.status}). Please try again later.`);
       }
+
+      if (!res.ok || !data.success) {
+        alert(data.message || `Submission failed (HTTP ${res.status}). Please try again later.`);
+        return;
+      }
+
+      setLastReferenceId(data.referenceId || '');
+
+      const wantsContact =
+        answers['13'] === 'Yes.' ||
+        answers['13'] === 'Maybe, I would like more information.';
+
+      if (wantsContact && contactInfo.trim()) {
+        try {
+          const contactRes = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contactInfo }),
+          });
+          const contactText = await contactRes.text();
+          let contactData: any;
+          try {
+            contactData = contactText ? JSON.parse(contactText) : {};
+          } catch {
+            contactData = {};
+          }
+
+          if (!contactRes.ok || !contactData.success) {
+            window.alert(
+              contactData.message ||
+              'Your survey was received, but your separate contact request could not be delivered.'
+            );
+          }
+        } catch (contactError) {
+          console.error('[LatestHire] Separate contact request failed:', contactError);
+          window.alert(
+            'Your survey was received, but your separate contact request could not be delivered. Please contact the organizer directly if you still want a reply.'
+          );
+        }
+      }
+
+      setView('success');
     } catch (err) {
-      console.error(err);
-      alert('Network error submitting survey.');
+      console.error('[LatestHire] Submission request failed:', err);
+      const message = err instanceof Error
+        ? err.message
+        : 'We could not connect to the survey server. Please check your connection and try again.';
+      alert(message);
     } finally {
       setSubmitting(false);
     }
@@ -407,33 +453,13 @@ export default function App() {
             Share Survey QR
           </button>
 
-          {view === 'admin_dashboard' ? (
-            <button
-              onClick={() => {
-                setView('intro');
-                setAdminToken('');
-                localStorage.removeItem('usace_admin_token');
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-red-900/40 text-red-300 hover:bg-red-900/60 rounded-lg transition-colors border border-red-800"
-            >
-              <LogOut className="w-4 h-4" />
-              Exit Admin
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                if (adminToken) {
-                  setView('admin_dashboard');
-                } else {
-                  setView('admin_login');
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 rounded-lg transition-colors border border-slate-700"
-            >
-              <Lock className="w-4 h-4" />
-              Administrator Login
-            </button>
-          )}
+          <button
+            onClick={() => window.open('https://mail.google.com/mail/u/0/#inbox', '_blank', 'noopener,noreferrer')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 rounded-lg transition-colors border border-slate-700"
+          >
+            <Mail className="w-4 h-4" />
+            Open Gmail Archive
+          </button>
         </div>
       </header>
 
