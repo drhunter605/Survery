@@ -250,7 +250,7 @@ export default function App() {
       const res = await fetch('/api/surveys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers, comment, contactInfo }),
+        body: JSON.stringify({ answers, comment }),
       });
 
       const responseText = await res.text();
@@ -267,11 +267,41 @@ export default function App() {
       }
 
       setLastReferenceId(data.referenceId || '');
-      setView('success');
 
-      if (data.warning) {
-        window.setTimeout(() => alert(data.warning), 250);
+      const wantsContact =
+        answers['13'] === 'Yes.' ||
+        answers['13'] === 'Maybe, I would like more information.';
+
+      if (wantsContact && contactInfo.trim()) {
+        try {
+          const contactRes = await fetch('/api/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contactInfo }),
+          });
+          const contactText = await contactRes.text();
+          let contactData: any;
+          try {
+            contactData = contactText ? JSON.parse(contactText) : {};
+          } catch {
+            contactData = {};
+          }
+
+          if (!contactRes.ok || !contactData.success) {
+            window.alert(
+              contactData.message ||
+              'Your survey was received, but your separate contact request could not be delivered.'
+            );
+          }
+        } catch (contactError) {
+          console.error('[LatestHire] Separate contact request failed:', contactError);
+          window.alert(
+            'Your survey was received, but your separate contact request could not be delivered. Please contact the organizer directly if you still want a reply.'
+          );
+        }
       }
+
+      setView('success');
     } catch (err) {
       console.error('[LatestHire] Submission request failed:', err);
       const message = err instanceof Error
