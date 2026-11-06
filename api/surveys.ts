@@ -1,7 +1,7 @@
 import {
   SubmissionError,
   submitSurveyByEmail,
-} from '../lib/survey-mail';
+} from '../lib/survey-mail.js';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
