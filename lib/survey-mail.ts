@@ -131,7 +131,7 @@ export async function submitSurveyByEmail(
   const submittedAt = new Date().toISOString();
   const answerLines = Object.entries(surveyAnswers)
     .map(([question, answer]) => `Q${question}: ${formatAnswer(answer)}`)
-    .join('\\n');
+    .join('\n');
 
   const surveyBody = [
     'LATESTHIRE — NEW WORKPLACE FAIRNESS SURVEY',
@@ -149,7 +149,7 @@ export async function submitSurveyByEmail(
     '',
     'This email is the permanent record of this survey submission.',
     'Optional contact requests, if any, are sent separately and are not attached to this response.',
-  ].join('\\n');
+  ].join('\n');
 
   try {
     await sendToOrganizer(`[LatestHire Survey] ${referenceId}`, surveyBody);
@@ -190,7 +190,7 @@ export async function sendSeparateContactRequest(contactInfo: unknown): Promise<
         cleanContact,
         '',
         'This message is intentionally separate and does not identify or include a survey response.',
-      ].join('\\n'),
+      ].join('\n'),
     );
   } catch (error) {
     const code =
