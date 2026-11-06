@@ -1,4 +1,4 @@
-import { isMailConfigured } from '../lib/survey-mail';
+import { isMailConfigured } from '../lib/survey-mail.js';
 
 export default function handler(req: any, res: any) {
   res.setHeader('Cache-Control', 'no-store');
