@@ -180,7 +180,7 @@ const SURVEY_QUESTIONS: QuestionDef[] = [
 ];
 
 export default function App() {
-  const [view, setView] = useState<'intro' | 'survey' | 'success' | 'admin_login' | 'admin_dashboard'>('intro');
+  const [view, setView] = useState<'intro' | 'survey' | 'success'>('intro');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [comment, setComment] = useState('');
