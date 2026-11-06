@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import {
   isMailConfigured,
+  sendSeparateContactRequest,
   SubmissionError,
   submitSurveyByEmail,
 } from './lib/survey-mail';
@@ -45,6 +46,27 @@ async function start() {
         res.status(500).json({
           success: false,
           message: 'The survey could not be processed. Please try again later.',
+        });
+      }
+    }
+  });
+
+  app.post('/api/contact', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      await sendSeparateContactRequest(req.body?.contactInfo);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof SubmissionError) {
+        res.status(error.statusCode).json({
+          success: false,
+          message: error.publicMessage,
+        });
+      } else {
+        console.error('[LatestHire] Local contact request error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Your contact request could not be processed.',
         });
       }
     }
