@@ -65,6 +65,9 @@ function createTransporter() {
     tls: {
       minVersion: 'TLSv1.2',
     },
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 8000,
   });
 }
 
