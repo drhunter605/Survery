@@ -1015,7 +1015,7 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
                 <div>
                   <h2 className="text-base font-bold text-slate-900">Email Outbox Dispatch Logs</h2>
-                  <p className="text-xs text-slate-500">Every completed survey triggers an automated secure email dispatch to locksurverypitt@gmail.com.</p>
+                  <p className="text-xs text-slate-500">Every completed survey triggers an automated secure email dispatch to locksurveyspitt@gmail.com.</p>
                 </div>
 
                 <div className="space-y-4">

@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -90,8 +91,39 @@ const app = express();
 app.use(express.json());
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'usace_fairness_2026';
-const SURVEY_OWNER_EMAIL = process.env.SURVEY_OWNER_EMAIL || 'locksurverypitt@gmail.com';
+const SURVEY_OWNER_EMAIL = process.env.SURVEY_OWNER_EMAIL || 'locksurveyspitt@gmail.com';
 const activeAdminTokens = new Set<string>();
+
+// Nodemailer Transporter
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: process.env.SMTP_USER && process.env.SMTP_PASS ? {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  } : undefined,
+});
+
+async function sendSurveyEmail(recipient: string, subject: string, body: string): Promise<boolean> {
+  try {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.log('[Email Log] SMTP credentials not configured. Response saved to database and admin outbox log.');
+      return false;
+    }
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: recipient,
+      subject,
+      text: body,
+    });
+    console.log(`[Email Sent] Successfully delivered to ${recipient}`);
+    return true;
+  } catch (error) {
+    console.error('Failed to send email via SMTP (response is safely stored in database):', error);
+    return false;
+  }
+}
 
 // Admin Login
 app.post('/api/admin/login', (req: Request, res: Response) => {
@@ -117,7 +149,7 @@ const requireAdmin = (req: Request, res: Response, next: Function) => {
 };
 
 // Submit Survey
-app.post('/api/surveys', (req: Request, res: Response) => {
+app.post('/api/surveys', async (req: Request, res: Response) => {
   try {
     const { answers, comment, contactInfo } = req.body;
     if (!answers || typeof answers !== 'object') {
@@ -157,6 +189,8 @@ ${submission.comment || 'No comment provided.'}
 ==================================================
     `.trim();
 
+    const emailSent = await sendSurveyEmail(SURVEY_OWNER_EMAIL, `[Survey Submission] ${referenceId}`, emailBody);
+
     const emailLog: EmailLog = {
       id: Math.random().toString(36).substring(2, 9),
       recipient: SURVEY_OWNER_EMAIL,
@@ -164,14 +198,14 @@ ${submission.comment || 'No comment provided.'}
       body: emailBody,
       referenceId,
       timestamp: new Date().toISOString(),
-      status: 'sent',
+      status: emailSent ? 'sent' : 'queued',
     };
 
     const emails = loadEmails();
     emails.unshift(emailLog);
     saveEmails(emails);
 
-    console.log(`[Survey Submitted] Ref: ${referenceId} | Email queued/sent to ${SURVEY_OWNER_EMAIL}`);
+    console.log(`[Survey Submitted] Ref: ${referenceId} | Saved to database and outbox log for ${SURVEY_OWNER_EMAIL}`);
 
     res.json({ success: true, referenceId });
   } catch (error) {
@@ -233,10 +267,7 @@ app.get('/api/admin/stats', requireAdmin, (req: Request, res: Response) => {
   const surveys = loadSurveys();
   const total = surveys.length;
 
-  // Suppression filter check (< 10 responses warning)
   const suppressBreakdown = total < 10;
-
-  // Question-wise distribution
   const distributions: Record<string, Record<string, number>> = {};
 
   surveys.forEach((s) => {
